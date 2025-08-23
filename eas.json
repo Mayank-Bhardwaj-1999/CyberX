@@ -1,0 +1,40 @@
+{
+  "cli": {
+    "version": ">= 8.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "channel": "development",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "developmentClient": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cyberx.icu"
+      }
+    },
+    "preview": {
+      "channel": "preview",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cyberx.icu"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cyberx.icu"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

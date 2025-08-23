@@ -1,0 +1,78 @@
+# Exclude everything that's not essential for the mobile app
+
+# Backend directory - 1.5GB of Python environment and scripts
+backend/
+
+# Node modules - will be installed during build
+node_modules/
+
+# Git directory
+.git/
+
+# All Python files and related
+*.py
+*.pyc
+__pycache__/
+requirements*.txt
+
+# All documentation
+*.md
+
+# All scripts
+*.bat
+*.sh
+*.exe
+
+# Build outputs
+dist/
+build/
+out/
+
+# Development files
+.vscode/
+.idea/
+.expo/
+
+# Logs and cache
+*.log
+logs/
+cache/
+
+# Environment files
+.env*
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+**/tests/
+**/*.test.*
+**/*.spec.*
+
+# Keep essential build configs (do NOT ignore)
+# tsconfig.json
+# babel.config.js
+# metro.config.js
+
+# Package manager logs
+npm-debug.log*
+yarn-error.log
+pnpm-debug.log*
+
+# Coverage
+coverage/
+
+# Misc
+*~
+._*
+
+# Native project folders (using Prebuild/CNG)
+/android
+/ios

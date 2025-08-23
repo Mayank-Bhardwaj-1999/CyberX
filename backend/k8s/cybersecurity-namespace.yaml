@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cybersec
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cybersec-config
+  namespace: cybersec
+data:
+  url_fetch.txt: |
+    # Add your URLs here
+    https://feeds.feedburner.com/eset/blog
+    https://www.bleepingcomputer.com/feed/
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cybersec-data-pvc
+  namespace: cybersec
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cybersec-logs-pvc
+  namespace: cybersec
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cybersec-secrets
+  namespace: cybersec
+type: Opaque
+data:
+  # Add any API keys or secrets here (base64 encoded)
+  api-key: ""

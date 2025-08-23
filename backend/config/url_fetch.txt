@@ -1,0 +1,23 @@
+# Cybersecurity News Websites URLs
+# Add one URL per line, comments start with #
+
+# 1 - The Hacker News
+https://thehackernews.com/
+
+# 2 - The 420 India Specific
+https://the420.in/
+
+# 3 - Bleeping Computer
+https://www.bleepingcomputer.com/
+
+# 4 - Krebs on Security
+https://krebsonsecurity.com/
+
+# 5 - Dark Reading
+https://www.darkreading.com/
+
+# 6 - SecurityWeek
+https://www.securityweek.com/
+
+# 7 - Threatpost
+https://threatpost.com/

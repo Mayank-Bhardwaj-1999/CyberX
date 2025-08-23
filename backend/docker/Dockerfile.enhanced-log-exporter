@@ -1,0 +1,30 @@
+# Enhanced Log Exporter Dockerfile
+FROM python:3.11-slim
+
+LABEL maintainer="Cybersecurity Backend Team"
+LABEL description="Enhanced log metrics exporter for Grafana dashboard"
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy enhanced log exporter
+COPY enhanced_log_exporter.py .
+
+# Create directories
+RUN mkdir -p /app/data /app/logs
+
+# Expose port
+EXPOSE 9201
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9201/metrics || exit 1
+
+# Run the enhanced log exporter
+CMD ["python", "enhanced_log_exporter.py"]

@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install required packages
+RUN pip install prometheus-client
+
+# Copy the log exporter script
+COPY log_exporter.py .
+
+# Expose the metrics port
+EXPOSE 9201
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Run the log exporter
+CMD ["python", "log_exporter.py"]

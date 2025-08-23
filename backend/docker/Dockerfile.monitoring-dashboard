@@ -1,0 +1,40 @@
+# Custom CyberX Monitoring Dashboard Container
+FROM grafana/grafana:latest
+
+# Set environment variables
+ENV GF_SECURITY_ADMIN_USER=venom
+ENV GF_SECURITY_ADMIN_PASSWORD=Youcanneverseeme@125270
+ENV GF_USERS_ALLOW_SIGN_UP=false
+ENV GF_USERS_ALLOW_ORG_CREATE=false
+ENV GF_USERS_AUTO_ASSIGN_ORG=true
+ENV GF_USERS_AUTO_ASSIGN_ORG_ROLE=Viewer
+
+# Install additional plugins
+RUN grafana-cli plugins install grafana-clock-panel
+RUN grafana-cli plugins install grafana-simple-json-datasource
+RUN grafana-cli plugins install grafana-worldmap-panel
+RUN grafana-cli plugins install vonage-status-panel
+
+# Create custom directories
+USER root
+RUN mkdir -p /var/lib/grafana/dashboards/cybersec
+RUN mkdir -p /etc/grafana/provisioning/dashboards
+RUN mkdir -p /etc/grafana/provisioning/datasources
+
+# Copy custom configuration
+COPY monitoring/grafana/datasources.yml /etc/grafana/provisioning/datasources/
+COPY monitoring/grafana/dashboards.yml /etc/grafana/provisioning/dashboards/
+COPY monitoring/grafana/cybersec-main-enhanced.json /var/lib/grafana/dashboards/cybersec/
+
+# Custom Grafana config
+RUN echo "[dashboards]" >> /etc/grafana/grafana.ini && \
+    echo "default_home_dashboard_path = /var/lib/grafana/dashboards/cybersec/cybersec-main-enhanced.json" >> /etc/grafana/grafana.ini && \
+    echo "[security]" >> /etc/grafana/grafana.ini && \
+    echo "admin_user = venom" >> /etc/grafana/grafana.ini && \
+    echo "admin_password = Youcanneverseeme@125270" >> /etc/grafana/grafana.ini
+
+USER grafana
+
+EXPOSE 3000
+
+ENTRYPOINT ["/run.sh"]

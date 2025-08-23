@@ -1,0 +1,158 @@
+services:
+  # Grafana - Dashboard and Visualization (Public Access via Nginx)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cybersec-grafana
+    ports:
+      - "127.0.0.1:3000:3000"  # Bind to localhost only
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ../monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=venom
+      - GF_SECURITY_ADMIN_PASSWORD=newpassword123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/cybersec-main-enhanced.json
+      - GF_SERVER_ROOT_URL=https://cyberx.icu
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_COOKIE_SAMESITE=strict
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  # Prometheus - Metrics Collection (Internal Only)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cybersec-prometheus
+    ports:
+      - "127.0.0.1:9091:9090"  # Bind to localhost only
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - cybersec-network
+
+  # Node Exporter - System Metrics (Internal Only)
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: cybersec-node-exporter
+    ports:
+      - "127.0.0.1:9100:9100"  # Bind to localhost only
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # cAdvisor - Container Metrics (Internal Only)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cybersec-cadvisor
+    ports:
+      - "127.0.0.1:8081:8080"  # Bind to localhost only
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # AlertManager - Alert Management (Internal Only)
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: cybersec-alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"  # Bind to localhost only
+    volumes:
+      - ../monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Log Exporter - Application Logs (Internal Only)
+  log-exporter:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.log-exporter
+    container_name: cybersec-log-exporter
+    ports:
+      - "127.0.0.1:9099:9099"  # Bind to localhost only
+    volumes:
+      - ../logs:/app/logs:ro
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Enhanced Log Exporter (Internal Only)
+  enhanced-log-exporter:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.enhanced-log-exporter
+    container_name: cybersec-enhanced-log-exporter
+    ports:
+      - "127.0.0.1:9098:9098"  # Bind to localhost only
+    volumes:
+      - ../logs:/app/logs:ro
+      - ../data:/app/data:ro
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Metrics Exporter - Custom Metrics (Internal Only)
+  metrics-exporter:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.exporter
+    container_name: cybersec-metrics-exporter
+    ports:
+      - "127.0.0.1:9097:9097"  # Bind to localhost only
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs:ro
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+volumes:
+  grafana_data:
+    name: cybersec_grafana_data
+  prometheus_data:
+    name: cybersec_prometheus_data
+  alertmanager_data:
+    name: cybersec_alertmanager_data
+
+networks:
+  monitoring:
+    name: cybersec_monitoring
+    driver: bridge
+  cybersec-network:
+    name: cybersec_network
+    external: true

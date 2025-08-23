@@ -1,0 +1,37 @@
+{
+  "monitor_settings": {
+    "check_interval_minutes": 30,
+    "output_file": "cybersecurity_news_live.json",
+    "log_file": "monitor_log.txt",
+    "max_articles_per_site": 10,
+    "enable_email_notifications": false,
+    "enable_webhook_notifications": false,
+    "display_full_status": true,
+    "auto_cleanup_old_logs": true,
+    "max_log_days": 7
+  },
+  "notification_settings": {
+    "email": {
+      "smtp_server": "",
+      "smtp_port": 587,
+      "username": "",
+      "password": "",
+      "recipients": []
+    },
+    "webhook": {
+      "url": "",
+      "headers": {}
+    }
+  },
+  "site_priorities": {
+    "https://thehackernews.com/": "high",
+    "https://krebsonsecurity.com/": "high", 
+    "https://www.bleepingcomputer.com/": "medium",
+    "https://www.darkreading.com/": "medium",
+    "https://www.securityweek.com/": "medium",
+    "https://threatpost.com/": "low",
+    "https://www.infosecurity-magazine.com/": "medium",
+    "https://www.scmagazine.com/": "medium",
+    "https://cybersecuritynews.com/": "medium"
+  }
+}

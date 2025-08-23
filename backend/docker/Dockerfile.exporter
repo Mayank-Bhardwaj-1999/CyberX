@@ -1,0 +1,38 @@
+# Dockerfile for Cybersecurity Backend Metrics Exporter
+FROM python:3.11-slim
+
+LABEL maintainer="Cybersecurity Backend Team"
+LABEL description="Custom metrics exporter for cybersecurity backend monitoring"
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy metrics exporter
+COPY metrics_exporter.py .
+
+# Create directories for data access
+RUN mkdir -p /app/data /app/logs
+
+# Expose metrics port
+EXPOSE 9200
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV METRICS_PORT=9200
+ENV BACKEND_URL=http://cybersecurity-backend:8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9200/metrics || exit 1
+
+# Run the metrics exporter
+CMD ["python", "metrics_exporter.py"]

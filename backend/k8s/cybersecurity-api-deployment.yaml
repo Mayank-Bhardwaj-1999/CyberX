@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cybersecurity-api
+  namespace: cybersec
+  labels:
+    app: cybersecurity-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cybersecurity-api
+  template:
+    metadata:
+      labels:
+        app: cybersecurity-api
+    spec:
+      containers:
+      - name: cybersecurity-api
+        image: cybersecurity-backend:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: PYTHONPATH
+          value: "/app"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: config-volume
+          mountPath: /app/config
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: cybersec-data-pvc
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: cybersec-logs-pvc
+      - name: config-volume
+        configMap:
+          name: cybersec-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cybersecurity-api-service
+  namespace: cybersec
+spec:
+  selector:
+    app: cybersecurity-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cybersecurity-api-hpa
+  namespace: cybersec
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cybersecurity-api
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cybersecurity-api-ingress
+  namespace: cybersec
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: cybersec-api.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cybersecurity-api-service
+            port:
+              number: 80

@@ -1,0 +1,160 @@
+groups:
+  - name: cybersecurity_backend_alerts
+    rules:
+      
+      # API Health Alerts
+      - alert: APIDown
+        expr: cybersec_api_health == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "🚨 Cybersecurity API is down"
+          description: "The cybersecurity backend API has been down for more than 1 minute"
+
+      - alert: APISlowResponse
+        expr: cybersec_api_response_time_seconds > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "⚠️ API response time is slow"
+          description: "API response time is {{ $value }}s, which is above 5 seconds"
+
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: cybersec_system_cpu_usage_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "🔥 High CPU usage detected"
+          description: "CPU usage is {{ $value }}%, which is above 85% for 5 minutes"
+
+      - alert: HighMemoryUsage
+        expr: cybersec_system_memory_usage_percent > 90
+        for: 3m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "💾 High memory usage detected"
+          description: "Memory usage is {{ $value }}%, which is above 90% for 3 minutes"
+
+      - alert: LowDiskSpace
+        expr: cybersec_system_disk_free_gb < 2
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "💽 Low disk space warning"
+          description: "Free disk space is {{ $value }}GB, which is below 2GB"
+
+      # Data Processing Alerts
+      - alert: NoRecentArticles
+        expr: cybersec_articles_current == 0
+        for: 10m
+        labels:
+          severity: warning
+          component: data
+        annotations:
+          summary: "📰 No articles in live feed"
+          description: "No articles have been found in the live feed for 10 minutes"
+
+      - alert: StaleDataFile
+        expr: cybersec_data_file_age_hours{filename="cybersecurity_news_live.json"} > 2
+        for: 1m
+        labels:
+          severity: warning
+          component: data
+        annotations:
+          summary: "📄 Data file is stale"
+          description: "The live news file hasn't been updated for {{ $value }} hours"
+
+      - alert: LargeFeedFile
+        expr: cybersec_data_file_size_kb{filename="cybersecurity_news_live.json"} > 10000
+        for: 1m
+        labels:
+          severity: warning
+          component: data
+        annotations:
+          summary: "📈 Large feed file detected"
+          description: "The live news file is {{ $value }}KB, which might indicate data accumulation"
+
+      # AI Processing Alerts
+      - alert: AIProcessingFailure
+        expr: cybersec_ai_success_rate < 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: ai
+        annotations:
+          summary: "🤖 AI processing success rate low"
+          description: "AI processing success rate is {{ $value }}, which is below 80%"
+
+      - alert: AIQueueBacklog
+        expr: cybersec_ai_queue_size > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: ai
+        annotations:
+          summary: "📋 Large AI processing queue"
+          description: "AI processing queue has {{ $value }} items, indicating a backlog"
+
+      # Error Rate Alerts  
+      - alert: HighErrorRate
+        expr: increase(cybersec_errors_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          component: errors
+        annotations:
+          summary: "⚡ High error rate detected"
+          description: "{{ $value }} errors occurred in the last 5 minutes"
+
+      # Backup System Alerts
+      - alert: NoRecentBackups
+        expr: cybersec_backup_files_count < 1
+        for: 1m
+        labels:
+          severity: warning
+          component: backup
+        annotations:
+          summary: "🗂️ No backup files found"
+          description: "No backup files are present in the backup directory"
+
+      - alert: TooManyBackups
+        expr: cybersec_backup_files_count > 20
+        for: 1m
+        labels:
+          severity: info
+          component: backup
+        annotations:
+          summary: "📚 Many backup files present"
+          description: "{{ $value }} backup files present - consider cleanup"
+
+      # Service Health Alerts
+      - alert: ServiceRestarted
+        expr: increase(cybersec_service_restarts_total[1m]) > 0
+        for: 0s
+        labels:
+          severity: info
+          component: service
+        annotations:
+          summary: "🔄 Service restarted"
+          description: "The cybersecurity service has been restarted"
+
+      - alert: MonitoringDown
+        expr: up{job="cybersec-backend-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "📊 Monitoring system down"
+          description: "The backend metrics exporter is not responding"

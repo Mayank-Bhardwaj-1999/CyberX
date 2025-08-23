@@ -1,0 +1,212 @@
+services:
+  # Custom CyberX Monitoring Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cybersec-grafana-venom
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ../monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=venom
+      - GF_SECURITY_ADMIN_PASSWORD=Youcanneverseeme@125270
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-worldmap-panel
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_UID=cybersec-main
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - cybersec-network
+    depends_on:
+      - prometheus
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cybersec-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - cybersec-network
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: cybersec-node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # cAdvisor - Docker Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cybersec-cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    restart: unless-stopped
+    networks:
+      - monitoring
+    command:
+      - '--housekeeping_interval=10s'
+      - '--docker_only=false'
+      - '--store_container_labels=false'
+      - '--whitelisted_container_labels=name,maintainer'
+
+  # Custom Backend Metrics Exporter
+  backend-exporter:
+    image: cybersec-backend-exporter:latest
+    container_name: cybersec-backend-exporter
+    ports:
+      - "9200:9200"
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs:ro
+    environment:
+      - BACKEND_URL=http://load-balancer:80
+      - METRICS_PORT=9200
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - cybersec-network
+    # depends_on:
+    #   - cybersecurity-backend
+
+  # Enhanced Log Exporter - Real-time Log Monitoring for Dashboard
+  enhanced-log-exporter:
+    image: cybersec-enhanced-log-exporter:latest
+    container_name: cybersec-enhanced-log-exporter
+    ports:
+      - "9201:9201"
+    volumes:
+      - ../logs:/app/logs:ro  # Read-only access to logs
+      - ../data:/app/data:ro  # Read-only access to data
+      - //var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket for container monitoring (Windows)
+    environment:
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  # Log Exporter - Real-time Log Monitoring
+  log-exporter:
+    image: cybersec-log-exporter:latest
+    container_name: cybersec-log-exporter
+    ports:
+      - "9202:9201"
+    volumes:
+      - ../logs:/app/logs:ro  # Read-only access to logs
+    environment:
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  # Alertmanager - Alert Management
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: cybersec-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Your Main Backend Application (commented out - start separately)
+  # cybersecurity-backend:
+  #   build: 
+  #     context: ..
+  #     dockerfile: Dockerfile
+  #   container_name: cybersecurity-backend
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ../data:/app/data
+  #     - ../logs:/app/logs
+  #     - ../config:/app/config
+  #   environment:
+  #     - ENVIRONMENT=production
+  #     - METRICS_ENABLED=true
+  #     - METRICS_PORT=9090
+  #   restart: unless-stopped
+  #   networks:
+  #     - monitoring
+
+  # Portainer - Docker Management UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: cybersec-portainer
+    ports:
+      - "9443:9443"
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - cybersec-network
+
+volumes:
+  grafana_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  portainer_data:
+    driver: local
+
+networks:
+  monitoring:
+    driver: bridge
+  cybersec-network:
+    external: true
+    name: docker_cybersec-network

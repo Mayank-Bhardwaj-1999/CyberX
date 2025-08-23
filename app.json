@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "CyberX",
+    "slug": "cyberx",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "cyberx",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4A6CF7"
+    },
+    "assetBundlePatterns": [
+      "assets/**/*",
+      "app/**/*",
+      "components/**/*",
+      "constants/**/*",
+      "hooks/**/*",
+      "services/**/*",
+      "store/**/*",
+      "types/**/*",
+      "utils/**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cyberx.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4A6CF7"
+      },
+      "package": "cyberx.icu",
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "@react-native-firebase/app",
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#4A6CF7",
+          "mode": "production"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false,
+            "proguardMinifyEnabled": false,
+            "usesCleartextTraffic": false
+          },
+          "ios": {
+            "newArchEnabled": false
+          }
+        }
+      ],
+      [
+        "expo-web-browser",
+        { "experimentalLauncherActivity": true }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f393c63d-fd77-43e2-9452-061c26a71358"
+      },
+      "FIREBASE_API_KEY": "${FIREBASE_API_KEY}",
+      "FIREBASE_AUTH_DOMAIN": "${FIREBASE_AUTH_DOMAIN}",
+      "FIREBASE_PROJECT_ID": "${FIREBASE_PROJECT_ID}",
+      "FIREBASE_STORAGE_BUCKET": "${FIREBASE_STORAGE_BUCKET}",
+      "FIREBASE_MESSAGING_SENDER_ID": "${FIREBASE_MESSAGING_SENDER_ID}",
+      "FIREBASE_APP_ID": "${FIREBASE_APP_ID}"
+    }
+  }
+}

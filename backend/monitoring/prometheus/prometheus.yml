@@ -1,0 +1,67 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alerts.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # Main Application Metrics - Scaled FastAPI Containers
+  - job_name: 'cybersecurity-backend'
+    static_configs:
+      - targets: 
+          - 'cybersecurity-api-1:8080'
+          - 'cybersecurity-api-2:8080'
+          - 'cybersecurity-api-3:8080'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # HAProxy Load Balancer Stats (Web Interface)
+  - job_name: 'haproxy-stats'
+    static_configs:
+      - targets: ['load-balancer:8404']
+    metrics_path: '/stats'
+    scrape_interval: 15s
+
+  # Custom Backend Metrics
+  - job_name: 'backend-exporter'
+    static_configs:
+      - targets: ['backend-exporter:9200']
+    scrape_interval: 15s
+
+  # System Metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # Enhanced Log Metrics - For Dashboard Panels
+  - job_name: 'enhanced-log-exporter'
+    static_configs:
+      - targets: ['enhanced-log-exporter:9201']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  # Log Metrics - Real-time Log Analysis
+  - job_name: 'log-exporter'
+    static_configs:
+      - targets: ['log-exporter:9201']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Docker Container Metrics (if available)
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['host.docker.internal:9323']
+    scrape_interval: 30s

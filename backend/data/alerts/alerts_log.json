@@ -1,0 +1,81 @@
+[
+  {
+    "type": "new_articles_alert",
+    "timestamp": "2025-08-22T11:04:18.785644",
+    "count": 8,
+    "articles": [
+      {
+        "title": "Pre-Auth Exploit Chains Found in Commvault Could Enable Remote Code Execution Attacks",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/pre-auth-exploit-chains-found-in.html",
+        "published_at": "2025-08-22T11:02:18.764353",
+        "summary": "**Critical Commvault Vulnerabilities Expose Systems to Remote Code Execution**\n\nUrgent security patches are recommended for Commvault users following the discovery of multiple vulnerabilities that cou..."
+      },
+      {
+        "title": "Cybercriminals Deploy CORNFLAKE.V3 Backdoor via ClickFix Tactic and Fake CAPTCHA Pages",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/cybercriminals-deploy-cornflakev3.html",
+        "published_at": "2025-08-22T11:02:20.764200",
+        "summary": "**ClickFix Strikes Again: Cybercriminals Deploy Sophisticated Backdoor, CORNFLAKE.V3, Through Deceptive Tactics**\n\nIn a concerning development, threat actors are actively exploiting the ClickFix socia..."
+      },
+      {
+        "title": "Weak Passwords and Compromised Accounts: Key Findings from the Blue Report 2025",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/weak-passwords-and-compromised-accounts.html",
+        "published_at": "2025-08-22T11:02:23.737441",
+        "summary": "**Password Security Crisis: Blue Report 2025 Reveals Alarming Rise in Credential Compromise**\n\nAccording to the Picus Security Blue Report 2025, the state of password security is dire. The report, bas..."
+      },
+      {
+        "title": "Hackers Using New QuirkyLoader Malware to Spread Agent Tesla, AsyncRAT and Snake Keylogger",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/hackers-using-new-quirkyloader-malware.html",
+        "published_at": "2025-08-22T11:02:26.186597",
+        "summary": "**QuirkyLoader Unleashed: New Malware Campaign Targets Businesses with Stealthy Attacks**\n\nA new malware loader called QuirkyLoader is making waves, delivering a variety of malicious payloads via soph..."
+      },
+      {
+        "title": "Scattered Spider Hacker Gets 10 Years, $13M Restitution for SIM Swapping Crypto Theft",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/scattered-spider-hacker-gets-10-years.html",
+        "published_at": "2025-08-22T11:02:28.584223",
+        "summary": "**Scattered Spider Hacker Gets Decade-Long Sentence for SIM Swapping Crypto Heists**\n\nA 20-year-old member of the notorious Scattered Spider cybercrime group, known for its sophisticated attacks, has ..."
+      },
+      {
+        "title": "Apple Patches CVE-2025-43300 Zero-Day in iOS, iPadOS, and macOS Exploited in Targeted Attacks",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/apple-patches-cve-2025-43300-zero-day.html",
+        "published_at": "2025-08-22T11:02:31.140926",
+        "summary": "**Apple Rushes to Patch New Zero-Day in iOS, iPadOS, and macOS Under Active Attack**\n\nApple has issued critical security updates to address a zero-day vulnerability, identified as CVE-2025-43300, impa..."
+      },
+      {
+        "title": "DOM-Based Extension Clickjacking Exposes Popular Password Managers to Credential and Data Theft",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/dom-based-extension-clickjacking.html",
+        "published_at": "2025-08-22T11:02:33.478760",
+        "summary": "**Password Managers in Peril: Clickjacking Vulnerability Threatens User Credentials**\n\nA critical vulnerability, dubbed DOM-based extension clickjacking, has been uncovered, potentially putting millio..."
+      },
+      {
+        "title": "🕵️ Webinar: Discover and Control Shadow AI Agents in Your Enterprise Before Hackers Do",
+        "source": "thehackernews.com",
+        "url": "https://thehackernews.com/2025/08/webinar-discover-and-control-shadow-ai.html",
+        "published_at": "2025-08-22T11:02:35.836064",
+        "summary": "**Shadow AI Agents: The Silent Threat Lurking Within Your Enterprise**\n\nUrgent warnings are emerging about \"shadow AI agents,\" autonomous software programs operating secretly within organizations, pos..."
+      }
+    ],
+    "summary": {
+      "total_new": 8,
+      "sources": [
+        "thehackernews.com"
+      ],
+      "keywords": [
+        "attack",
+        "exploit",
+        "malware",
+        "hacker",
+        "hacker",
+        "attack",
+        "exploit",
+        "hacker"
+      ]
+    }
+  }
+]

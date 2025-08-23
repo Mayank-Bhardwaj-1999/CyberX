@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cybersecurity-fastapi
+  labels:
+    app: cybersecurity-fastapi
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cybersecurity-fastapi
+  template:
+    metadata:
+      labels:
+        app: cybersecurity-fastapi
+    spec:
+      containers:
+      - name: fastapi
+        image: cybersecurity-fastapi:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: API_WORKERS
+          value: "4"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: config-volume
+          mountPath: /app/config
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: cybersec-data-pvc
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: cybersec-logs-pvc
+      - name: config-volume
+        configMap:
+          name: cybersec-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cybersecurity-fastapi-service
+spec:
+  selector:
+    app: cybersecurity-fastapi
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cybersec-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cybersec-logs-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cybersec-config
+data:
+  # Add your configuration files here
+  app.conf: |
+    # Application configuration
+    debug = false
+    log_level = info
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cybersecurity-fastapi-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cybersecurity-fastapi
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
