@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # Load Balancer (HAProxy)
+  load-balancer:
+    image: haproxy:2.8-alpine
+    container_name: cybersec-load-balancer
+    ports:
+      - "127.0.0.1:8090:80"  # Load balancer frontend  
+      - "127.0.0.1:8404:8404"  # HAProxy stats page
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - cybersecurity-api-1
+      - cybersecurity-api-2
+      - cybersecurity-api-3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8404/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cybersec-network
+
+  # FastAPI Instance 1
+  cybersecurity-api-1:
+    build: 
+      context: ..
+      dockerfile: docker/Dockerfile.production
+    container_name: cybersecurity-fastapi-1
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      - WORKER_ID=1
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs
+      - ../config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - redis
+    networks:
+      - cybersec-network
+
+  # FastAPI Instance 2
+  cybersecurity-api-2:
+    build: 
+      context: ..
+      dockerfile: docker/Dockerfile.production
+    container_name: cybersecurity-fastapi-2
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      - WORKER_ID=2
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs
+      - ../config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - redis
+    networks:
+      - cybersec-network
+
+  # FastAPI Instance 3
+  cybersecurity-api-3:
+    build: 
+      context: ..
+      dockerfile: docker/Dockerfile.production
+    container_name: cybersecurity-fastapi-3
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      - WORKER_ID=3
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs
+      - ../config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - redis
+    networks:
+      - cybersec-network
+
+  # Redis Cache for session management and caching
+  redis:
+    image: redis:7-alpine
+    container_name: cybersec-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cybersec-network
+
+networks:
+  cybersec-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  redis-data:

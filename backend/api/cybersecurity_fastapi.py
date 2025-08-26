@@ -21,8 +21,55 @@ import asyncio
 import httpx
 import time
 import psutil
+from threading import Thread
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import os
+
+# Redis support for distributed caching (optional)
+REDIS_AVAILABLE = False
+redis_client = None
+try:
+    import redis
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+    redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    redis_client.ping()  # Test connection
+    REDIS_AVAILABLE = True
+    print(f"✅ Redis connected: {REDIS_URL}")
+except Exception as e:
+    print(f"⚠️  Redis not available (using local cache): {e}")
+    REDIS_AVAILABLE = False
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Global cache for news data with file modification tracking
+news_data_cache = {
+    "data": None,
+    "last_modified": 0,
+    "file_path": None
+}
+
+# Worker ID for distributed systems
+WORKER_ID = os.getenv('WORKER_ID', '1')
+
+class NewsFileWatcher(FileSystemEventHandler):
+    """File watcher to detect changes in news data files"""
+    
+    def __init__(self, cache_ref):
+        self.cache_ref = cache_ref
+        self.logger = logging.getLogger("news_file_watcher")
+    
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+            
+        # Check if the modified file is our summarized news file
+        if event.src_path.endswith('summarized_news_hf.json'):
+            self.logger.info(f"🔄 News file updated: {event.src_path}")
+            # Invalidate cache by setting last_modified to 0
+            self.cache_ref["last_modified"] = 0
+            self.cache_ref["data"] = None
+            self.logger.info("✅ Cache invalidated - fresh data will be loaded on next request")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -41,6 +88,44 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# Note: File watcher is optional - the system works with file modification time checking
+file_observer = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize file watcher for real-time data updates (optional)"""
+    global file_observer
+    
+    try:
+        # Try to set up file watcher for real-time updates
+        event_handler = NewsFileWatcher(news_data_cache)
+        file_observer = Observer()
+        
+        # Watch the data directory for changes to summarized_news_hf.json
+        watch_directory = DATA_DIR
+        file_observer.schedule(event_handler, watch_directory, recursive=False)
+        file_observer.start()
+        
+        logger.info(f"🔍 File watcher started - monitoring {watch_directory} for news updates")
+        logger.info("🚀 Real-time news data updates enabled!")
+        
+    except Exception as e:
+        logger.warning(f"File watcher not available (using fallback mode): {e}")
+        logger.info("📊 Using file modification time checking for updates")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup file watcher on shutdown"""
+    global file_observer
+    
+    if file_observer:
+        try:
+            file_observer.stop()
+            file_observer.join()
+            logger.info("🛑 File watcher stopped")
+        except Exception as e:
+            logger.warning(f"Error stopping file watcher: {e}")
 
 # Setup logging with rotating file handler
 logging.basicConfig(level=logging.INFO)
@@ -80,6 +165,71 @@ error_count = 0
 request_duration_sum = 0.0
 endpoint_stats = {}
 
+# 🚀 SPEED OPTIMIZATION: Response caching middleware
+@app.middleware("http")
+async def response_cache_middleware(request: Request, call_next):
+    """Cache complete responses for GET requests to achieve sub-100ms response times"""
+    start_time = time.time()
+    
+    # Check for cached response for GET requests
+    if request.method == "GET" and REDIS_AVAILABLE:
+        cache_key = f"cyberx:response_cache:{request.url.path}:{request.url.query}"
+        try:
+            cached_response = redis_client.get(cache_key)
+            if cached_response:
+                response_data = json.loads(cached_response)
+                process_time = time.time() - start_time
+                
+                response = Response(
+                    content=response_data["content"],
+                    status_code=response_data["status_code"],
+                    headers=response_data["headers"]
+                )
+                response.headers["X-Process-Time"] = str(process_time)
+                response.headers["X-Cache-Hit"] = "true"
+                response.headers["X-Cache-Source"] = "response_middleware"
+                return response
+        except Exception as e:
+            logger.debug(f"Response cache read error: {e}")
+    
+    # Process request normally
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    
+    # Cache successful GET responses for API endpoints
+    if (request.method == "GET" and response.status_code == 200 and 
+        REDIS_AVAILABLE and "/api/" in request.url.path):
+        try:
+            # Read response body
+            response_body = b""
+            async for chunk in response.body_iterator:
+                response_body += chunk
+            
+            # Prepare cache data
+            cache_data = {
+                "content": response_body.decode(),
+                "status_code": response.status_code,
+                "headers": dict(response.headers)
+            }
+            
+            # Store in cache with 90-second TTL for ultra-fast responses
+            cache_key = f"cyberx:response_cache:{request.url.path}:{request.url.query}"
+            redis_client.setex(cache_key, 90, json.dumps(cache_data))
+            
+            # Recreate response with cached body
+            response = Response(
+                content=response_body,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        except Exception as e:
+            logger.debug(f"Response cache write error: {e}")
+    
+    response.headers["X-Process-Time"] = str(process_time)
+    response.headers["X-Cache-Hit"] = "false"
+    
+    return response
+
 # Middleware for metrics collection
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
@@ -112,15 +262,15 @@ class ArticleResponse(BaseModel):
     id: str
     source: Dict[str, Any]
     title: str
-    description: Optional[str] = None  # Made optional since we're not using it
+    # description: Optional[str] = None  # REMOVED: Not used by frontend
     summary: str
-    content: str
+    # content: str  # REMOVED: Large field causing slow response times
     url: str
     urlToImage: str
     publishedAt: str
-    author: str
-    scraped_at: str
-    word_count: int
+    # author: str  # REMOVED: Not displayed in frontend feed
+    # scraped_at: str  # REMOVED: Internal field
+    # word_count: int  # REMOVED: Not needed for feed view
     domain: str
 
 class SourceResponse(BaseModel):
@@ -169,6 +319,94 @@ class AlertMarkReadRequest(BaseModel):
 
 class ExtractionRequest(BaseModel):
     url: HttpUrl
+
+# =====================================
+# REAL-TIME DATA CACHE MANAGEMENT
+# =====================================
+
+def get_fresh_news_data():
+    """
+    Get fresh news data with intelligent caching.
+    Supports both local cache and distributed Redis cache for scalability.
+    """
+    global news_data_cache
+    
+    summarized_file = os.path.join(DATA_DIR, "summarized_news_hf.json")
+    cache_key = "cyberx:news_data"
+    cache_mtime_key = "cyberx:news_mtime"
+    
+    try:
+        if not os.path.exists(summarized_file):
+            logger.warning(f"Summarized file not found: {summarized_file}")
+            return []
+            
+        current_modified = os.path.getmtime(summarized_file)
+        
+        # Check Redis cache first (if available)
+        if REDIS_AVAILABLE:
+            try:
+                cached_mtime = redis_client.get(cache_mtime_key)
+                if cached_mtime and float(cached_mtime) >= current_modified:
+                    cached_data = redis_client.get(cache_key)
+                    if cached_data:
+                        data = json.loads(cached_data)
+                        logger.info(f"🚀 Loaded {len(data)} articles from Redis cache (Worker {WORKER_ID})")
+                        return data
+            except Exception as e:
+                logger.warning(f"Redis cache read error: {e}")
+        
+        # Check local cache
+        if (news_data_cache["data"] is not None and 
+            news_data_cache["last_modified"] >= current_modified):
+            logger.info(f"📦 Loaded {len(news_data_cache['data'])} articles from local cache (Worker {WORKER_ID})")
+            return news_data_cache["data"]
+        
+        # Load fresh data from file
+        logger.info(f"🔄 Loading fresh news data from {summarized_file} (Worker {WORKER_ID})")
+        
+        with open(summarized_file, "r", encoding="utf-8") as f:
+            fresh_data = json.load(f)
+        
+        # Update local cache
+        news_data_cache["data"] = fresh_data
+        news_data_cache["last_modified"] = current_modified
+        news_data_cache["file_path"] = summarized_file
+        
+        # Update Redis cache (if available)
+        if REDIS_AVAILABLE and fresh_data:
+            try:
+                redis_client.setex(cache_key, 3600, json.dumps(fresh_data))  # 1 hour TTL
+                redis_client.setex(cache_mtime_key, 3600, str(current_modified))
+                logger.info(f"💾 Updated Redis cache (Worker {WORKER_ID})")
+            except Exception as e:
+                logger.warning(f"Redis cache write error: {e}")
+        
+        logger.info(f"✅ Loaded {len(fresh_data)} fresh articles (Worker {WORKER_ID})")
+        return fresh_data
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error in summarized file: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Error reading summarized file: {e}")
+        return []
+
+def invalidate_distributed_cache():
+    """Invalidate cache across all instances"""
+    global news_data_cache
+    
+    # Invalidate local cache
+    news_data_cache["last_modified"] = 0
+    news_data_cache["data"] = None
+    
+    # Invalidate Redis cache
+    if REDIS_AVAILABLE:
+        try:
+            redis_client.delete("cyberx:news_data")
+            redis_client.delete("cyberx:news_mtime")
+            logger.info(f"🗑️  Redis cache invalidated (Worker {WORKER_ID})")
+        except Exception as e:
+            logger.warning(f"Redis cache invalidation error: {e}")
 
 class DynamicNewsAPI:
     """Dynamic News API that adapts to URL configuration changes"""
@@ -320,7 +558,13 @@ class DynamicNewsAPI:
 dynamic_api = DynamicNewsAPI()
 
 def load_articles_from_file(filename):
-    """Load articles from JSON file with enhanced error handling"""
+    """Load articles from JSON file with enhanced error handling and intelligent caching"""
+    
+    # For summarized_news_hf.json, use the cached fresh data function
+    if filename == "summarized_news_hf.json":
+        return get_fresh_news_data()
+    
+    # For other files, use regular loading
     try:
         filepath = os.path.join(DATA_DIR, filename)
         if not os.path.exists(filepath):
@@ -370,22 +614,22 @@ def load_articles_from_file(filename):
         return []
 
 def format_article_for_api(article, source_info=None):
-    """Format article for consistent API response with dynamic source detection"""
+    """Format article for consistent API response with dynamic source detection - OPTIMIZED FOR SPEED"""
     # Handle articles that already have proper source structure (from summarized files)
     if isinstance(article.get("source"), dict) and article["source"].get("name"):
         return {
             "id": generate_article_id(article),
             "source": article.get("source"),
             "title": article.get("title", ""),
-            "description": article.get("description", "") or article.get("summary", ""),
+            # "description": article.get("description", "") or article.get("summary", ""),  # REMOVED: Not used by frontend
             "summary": article.get("summary", article.get("description", "")),
-            "content": article.get("content", ""),
+            # "content": article.get("content", ""),  # REMOVED: Large field not needed for feed view
             "url": article.get("url", ""),
             "urlToImage": article.get("urlToImage", "") or article.get("main_image", ""),
             "publishedAt": article.get("publishedAt", "") or article.get("scraped_at", ""),
-            "author": article.get("author", ""),
-            "scraped_at": article.get("scraped_at", ""),
-            "word_count": article.get("word_count", 0),
+            # "author": article.get("author", ""),  # REMOVED: Not displayed in feed
+            # "scraped_at": article.get("scraped_at", ""),  # REMOVED: Internal field
+            # "word_count": article.get("word_count", 0),  # REMOVED: Not needed for feed
             "domain": article.get("domain", "")
         }
     
@@ -418,15 +662,15 @@ def format_article_for_api(article, source_info=None):
             "url": source_url
         },
         "title": article.get("title", ""),
-        "description": article.get("description", ""),
+        # "description": article.get("description", ""),  # REMOVED: Not used by frontend
         "summary": article.get("summary", article.get("description", "")),
-        "content": article.get("content", ""),
+        # "content": article.get("content", ""),  # REMOVED: Large field not needed for feed view
         "url": article.get("url", ""),
         "urlToImage": article.get("urlToImage", "") or article.get("main_image", ""),
         "publishedAt": article.get("publishedAt", "") or article.get("scraped_at", ""),
-        "author": article.get("author", ""),
-        "scraped_at": article.get("scraped_at", ""),
-        "word_count": article.get("word_count", 0),
+        # "author": article.get("author", ""),  # REMOVED: Not displayed in feed
+        # "scraped_at": article.get("scraped_at", ""),  # REMOVED: Internal field
+        # "word_count": article.get("word_count", 0),  # REMOVED: Not needed for feed
         "domain": article.get("domain", "")
     }
 
@@ -539,33 +783,24 @@ async def get_all_news(
     limit: int = Query(10, ge=1, le=100, description="Number of articles per page"),
     source: Optional[str] = Query(None, description="Filter by source ID")
 ):
-    """Get all cybersecurity news from summarized AI-processed data only"""
+    """Get all cybersecurity news from summarized AI-processed data only - REAL-TIME UPDATES"""
     try:
-        all_articles = []
+        # 🚀 SPEED OPTIMIZATION: Check Redis cache for paginated response first
+        cache_key = f"cyberx:paginated_news:{page}:{limit}:{source or 'all'}"
         
-        # Load ONLY from summarized_news_hf.json
-        summarized_file = os.path.join(DATA_DIR, "summarized_news_hf.json")
-        
-        if os.path.exists(summarized_file):
+        if REDIS_AVAILABLE:
             try:
-                with open(summarized_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    
-                # The summarized file is already in the correct format for frontend
-                if isinstance(data, list):
-                    all_articles = data
-                    logger.info(f"Loaded {len(all_articles)} articles from summarized file")
-                else:
-                    logger.warning("Summarized file does not contain expected list format")
-                    
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON decode error in summarized file: {e}")
+                cached_response = redis_client.get(cache_key)
+                if cached_response:
+                    logger.info(f"🚀 Loaded paginated news from Redis cache (Worker {WORKER_ID})")
+                    return NewsResponse.parse_raw(cached_response)
             except Exception as e:
-                logger.error(f"Error reading summarized file: {e}")
-        else:
-            logger.warning(f"Summarized file not found: {summarized_file}")
+                logger.warning(f"Redis cache read error: {e}")
         
-        # If no summarized data found, return empty response
+        # 🚀 Load fresh data with automatic cache invalidation
+        all_articles = get_fresh_news_data()
+        
+        # If no data found, return empty response
         if not all_articles:
             logger.warning("No articles found in summarized data file")
             return NewsResponse(
@@ -593,26 +828,21 @@ async def get_all_news(
         end_idx = start_idx + limit
         paginated_articles = all_articles[start_idx:end_idx]
         
-        # Format articles for consistent API response (minimal formatting since data is already clean)
+        # Format articles for consistent API response (optimized for speed - minimal fields only)
         formatted_articles = []
         for article in paginated_articles:
             formatted_articles.append({
                 "id": generate_article_id(article),
                 "source": article.get("source", {}),
                 "title": article.get("title", ""),
-                # "description": article.get("summary", ""),  # Use AI summary as description
                 "summary": article.get("summary", ""),
-                "content": article.get("content", ""),
                 "url": article.get("url", ""),
                 "urlToImage": article.get("urlToImage", ""),
                 "publishedAt": article.get("publishedAt", ""),
-                "author": article.get("author", ""),
-                "scraped_at": article.get("scraped_at", ""),
-                "word_count": len(article.get("content", "").split()) if article.get("content") else 0,
                 "domain": article.get("source", {}).get("url", "").replace("https://", "").replace("http://", "").split("/")[0]
             })
         
-        return NewsResponse(
+        response = NewsResponse(
             status="success",
             totalResults=len(all_articles),
             page=page,
@@ -621,6 +851,16 @@ async def get_all_news(
             sources_available=len(set(article.get("source", {}).get("url", "") for article in all_articles)),
             data_sources_used=["summarized"]
         )
+        
+        # 🚀 SPEED OPTIMIZATION: Cache the paginated response in Redis
+        if REDIS_AVAILABLE:
+            try:
+                redis_client.setex(cache_key, 300, response.json())  # Cache for 5 minutes
+                logger.info(f"💾 Cached paginated response in Redis (Worker {WORKER_ID})")
+            except Exception as e:
+                logger.warning(f"Redis response cache write error: {e}")
+        
+        return response
         
     except Exception as e:
         logger.error(f"Error getting all news: {e}")
@@ -733,7 +973,7 @@ async def get_news_by_source(source_id: str):
 
 @app.get("/api/article/{article_url:path}", response_model=Dict[str, Any])
 async def get_article_by_id(article_url: str):
-    """Get specific article by URL"""
+    """Get specific article by URL - FULL CONTENT for article detail view"""
     try:
         # Decode the URL
         decoded_url = urllib.parse.unquote(article_url)
@@ -744,11 +984,22 @@ async def get_article_by_id(article_url: str):
         # Find the article by URL
         for article in articles:
             if article.get("url") == decoded_url:
-                formatted_article = format_article_for_api(article)
-                
+                # Return FULL article data for detail view (including content)
                 return {
                     "status": "success",
-                    "article": formatted_article
+                    "article": {
+                        "id": generate_article_id(article),
+                        "source": article.get("source"),
+                        "title": article.get("title", ""),
+                        "summary": article.get("summary", ""),
+                        "content": article.get("content", ""),  # FULL content for detail view
+                        "url": article.get("url", ""),
+                        "urlToImage": article.get("urlToImage", "") or article.get("main_image", ""),
+                        "publishedAt": article.get("publishedAt", "") or article.get("scraped_at", ""),
+                        "author": article.get("author", ""),
+                        "word_count": article.get("word_count", 0),
+                        "domain": article.get("domain", "")
+                    }
                 }
         
         # If not found, return error
@@ -1005,6 +1256,89 @@ async def health_check():
 async def simple_health_check():
     """Simple health check for Docker/load balancer"""
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+@app.post("/api/refresh-cache")
+async def refresh_news_cache():
+    """Manually refresh the news data cache across all instances - forces reload of fresh data"""
+    global news_data_cache
+    
+    try:
+        # Force cache invalidation across all instances
+        old_count = len(news_data_cache["data"]) if news_data_cache["data"] else 0
+        invalidate_distributed_cache()
+        
+        # Load fresh data
+        fresh_data = get_fresh_news_data()
+        new_count = len(fresh_data) if fresh_data else 0
+        
+        return {
+            "status": "success",
+            "message": f"News cache refreshed successfully across all instances (Worker {WORKER_ID})",
+            "timestamp": datetime.now().isoformat(),
+            "worker_id": WORKER_ID,
+            "articles_before": old_count,
+            "articles_after": new_count,
+            "cache_info": {
+                "file_path": news_data_cache["file_path"],
+                "last_modified": datetime.fromtimestamp(news_data_cache["last_modified"]).isoformat() if news_data_cache["last_modified"] else None,
+                "redis_available": REDIS_AVAILABLE
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error refreshing cache: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "message": f"Failed to refresh cache: {str(e)}",
+                "worker_id": WORKER_ID,
+                "timestamp": datetime.now().isoformat()
+            }
+        )
+
+@app.get("/api/cache-info")
+async def get_cache_info():
+    """Get information about the current cache state across all instances"""
+    global news_data_cache
+    
+    cache_info = {
+        "local_cache": {
+            "worker_id": WORKER_ID,
+            "has_data": news_data_cache["data"] is not None,
+            "articles_count": len(news_data_cache["data"]) if news_data_cache["data"] else 0,
+            "file_path": news_data_cache["file_path"],
+            "last_modified": datetime.fromtimestamp(news_data_cache["last_modified"]).isoformat() if news_data_cache["last_modified"] else None
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Add Redis cache info if available
+    if REDIS_AVAILABLE:
+        try:
+            redis_mtime = redis_client.get("cyberx:news_mtime")
+            redis_data_exists = redis_client.exists("cyberx:news_data")
+            redis_ttl = redis_client.ttl("cyberx:news_data")
+            
+            cache_info["redis_cache"] = {
+                "available": True,
+                "has_data": bool(redis_data_exists),
+                "last_modified": datetime.fromtimestamp(float(redis_mtime)).isoformat() if redis_mtime else None,
+                "ttl_seconds": redis_ttl if redis_ttl > 0 else None,
+                "redis_url": REDIS_URL
+            }
+        except Exception as e:
+            cache_info["redis_cache"] = {
+                "available": False,
+                "error": str(e)
+            }
+    else:
+        cache_info["redis_cache"] = {
+            "available": False,
+            "reason": "Redis not configured"
+        }
+    
+    return cache_info
 
 @app.get("/api/stats", response_model=Dict[str, Any])
 async def get_stats():
