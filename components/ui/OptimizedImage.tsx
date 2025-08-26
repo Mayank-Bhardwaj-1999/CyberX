@@ -32,6 +32,15 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
 
   const imageHeight = style?.height || (width - 32) / aspectRatio;
 
+  // Use a valid Material icon for placeholder
+  const getPlaceholderIcon = (placeholderValue: string) => {
+    // Check if it's a valid Material icon name (simple check)
+    if (placeholderValue.length > 20 || placeholderValue.includes('?') || placeholderValue.includes('%')) {
+      return 'image'; // Default fallback icon
+    }
+    return placeholderValue;
+  };
+
   if (!source || imageError) {
     return (
       <View style={[
@@ -44,7 +53,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         }
       ]}>
         <MaterialIcons 
-          name={placeholder as any} 
+          name={getPlaceholderIcon(placeholder) as any} 
           size={24} 
           color={colors.onSurfaceVariant} 
         />

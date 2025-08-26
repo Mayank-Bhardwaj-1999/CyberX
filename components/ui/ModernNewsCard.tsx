@@ -5,13 +5,12 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useReactions } from '../../store/LikeDislikeContext';
 import { useTheme } from '../../store/ThemeContext';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { BookmarkButton } from '../BookmarkButton';
 import { formatRelativeTime } from '../../utils/dateUtils';
-import { generateConsistentRiskScore, getThreatLevel, getThreatLevelColor } from '../../utils/threatAnalysis';
+import { getThreatLevel, getThreatLevelColor } from '../../utils/threatAnalysis';
 import { OptimizedImage } from './OptimizedImage';
 import type { Article } from '../../types/news';
 
@@ -24,11 +23,8 @@ interface ModernNewsCardProps {
 export function ModernNewsCard({ article, onPress, viewMode = 'default' }: ModernNewsCardProps) {
   const { resolvedTheme } = useTheme();
   const colors = Colors[resolvedTheme] || Colors.dark;
-  const { getReaction, toggleLike, toggleDislike } = useReactions();
-  const reaction = getReaction(article.url) || { liked: false, disliked: false, likeCount: Math.floor(Math.random()*40)+10, updatedAt: 0 };
 
-  // Get consistent threat analysis for this article
-  const riskScore = generateConsistentRiskScore(article);
+  // Get threat analysis for this article (keeping only what we need)
   const threatLevel = getThreatLevel(article);
   const threatColor = getThreatLevelColor(threatLevel, colors);
 
@@ -69,7 +65,7 @@ export function ModernNewsCard({ article, onPress, viewMode = 'default' }: Moder
             <OptimizedImage
               source={article.urlToImage}
               style={styles.compactListImg}
-              placeholder="LKO2?V%2Tw=w]~RBVZRi};RPxuwH"
+              placeholder="security"
             />
           ) : (
             <View style={[styles.compactListPlaceholder, { backgroundColor: colors.cardBorder }]}>
@@ -103,20 +99,6 @@ export function ModernNewsCard({ article, onPress, viewMode = 'default' }: Moder
               {formatRelativeTime(article.publishedAt)}
             </Text>
           </View>
-          
-          {/* Risk Score */}
-          <View style={styles.compactListRisk}>
-            <MaterialIcons 
-              name={riskScore >= 80 ? 'warning' : riskScore >= 60 ? 'error' : 'info'} 
-              size={12} 
-              color={riskScore >= 80 ? '#FF6B35' : riskScore >= 60 ? '#FFD93D' : colors.primary} 
-            />
-            <Text style={[styles.compactListRiskText, { 
-              color: riskScore >= 80 ? '#FF6B35' : riskScore >= 60 ? '#FFD93D' : colors.primary 
-            }]}>
-              {riskScore}%
-            </Text>
-          </View>
         </View>
 
         {/* Bookmark Button */}
@@ -141,7 +123,7 @@ export function ModernNewsCard({ article, onPress, viewMode = 'default' }: Moder
             <OptimizedImage
               source={article.urlToImage}
               style={styles.listImg}
-              placeholder="LKO2?V%2Tw=w]~RBVZRi};RPxuwH"
+              placeholder="security"
             />
           ) : (
             <View style={[styles.listPlaceholder, { backgroundColor: colors.cardBorder }]}>
@@ -183,20 +165,6 @@ export function ModernNewsCard({ article, onPress, viewMode = 'default' }: Moder
                 {formatRelativeTime(article.publishedAt)}
               </Text>
             </View>
-            
-            {/* Risk Score */}
-            <View style={styles.listRisk}>
-              <MaterialIcons 
-                name={riskScore >= 80 ? 'warning' : riskScore >= 60 ? 'error' : 'info'} 
-                size={14} 
-                color={riskScore >= 80 ? '#FF6B35' : riskScore >= 60 ? '#FFD93D' : colors.primary} 
-              />
-              <Text style={[styles.listRiskText, { 
-                color: riskScore >= 80 ? '#FF6B35' : riskScore >= 60 ? '#FFD93D' : colors.primary 
-              }]}>
-                {riskScore}%
-              </Text>
-            </View>
           </View>
         </View>
 
@@ -221,7 +189,7 @@ export function ModernNewsCard({ article, onPress, viewMode = 'default' }: Moder
           <OptimizedImage
             source={article.urlToImage}
             style={styles.heroImage}
-            placeholder="LKO2?V%2Tw=w]~RBVZRi};RPxuwH"
+            placeholder="security"
           />
         ) : (
           <View style={[styles.placeholderImage, { backgroundColor: colors.cardBorder }]}>
@@ -257,20 +225,17 @@ export function ModernNewsCard({ article, onPress, viewMode = 'default' }: Moder
           {article.title}
         </Text>
 
-        {/* Description/Summary */}
-        <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={3}>
-          {(article.summary || article.description || '').replace(/\*\*(.*?)\*\*/g,'$1')}
-        </Text>
-
-        {/* Threat Summary */}
-        <View style={styles.threatSummary}>
-          <MaterialIcons name="psychology" size={16} color={colors.primary} />
-          <Text style={[styles.threatSummaryText, { color: colors.textSecondary }]}>
-            Risk Score: {riskScore}% • AI Analyzed
+        {/* Clean, professional description */}
+        {(article.summary || article.description) && (
+          <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={2}>
+            {(article.summary || article.description || '')
+              .replace(/\*\*(.*?)\*\*/g, '$1')
+              .replace(/\.\.\./g, '')
+              .trim()}
           </Text>
-        </View>
+        )}
 
-        {/* Metadata */}
+        {/* Clean metadata without risk score */}
         <View style={styles.metadataContainer}>
           <View style={styles.metadataLeft}>
             <View style={styles.timeContainer}>
@@ -279,39 +244,10 @@ export function ModernNewsCard({ article, onPress, viewMode = 'default' }: Moder
                 {formatRelativeTime(article.publishedAt)}
               </Text>
             </View>
-            
-            <View style={styles.riskScoreContainer}>
-              <MaterialIcons 
-                name={riskScore >= 80 ? 'warning' : riskScore >= 60 ? 'error' : 'info'} 
-                size={14} 
-                color={riskScore >= 80 ? '#FF6B35' : riskScore >= 60 ? '#FFD93D' : colors.primary} 
-              />
-              <Text style={[styles.riskScore, { 
-                color: riskScore >= 80 ? '#FF6B35' : riskScore >= 60 ? '#FFD93D' : colors.primary 
-              }]}>
-                {riskScore}%
-              </Text>
-            </View>
           </View>
 
           <View style={styles.actionButtons}>
-            {/* Like Button */}
-            <TouchableOpacity
-              style={[styles.reactionButton, reaction.liked && { backgroundColor: colors.primary + '22' }]}
-              onPress={() => toggleLike(article)}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name={reaction.liked ? 'thumb-up' : 'thumb-up-off-alt'} size={16} color={reaction.liked ? colors.primary : colors.textSecondary} />
-              <Text style={[styles.reactionCount, { color: reaction.liked ? colors.primary : colors.textSecondary }]}>{reaction.likeCount}</Text>
-            </TouchableOpacity>
-            {/* Dislike */}
-            <TouchableOpacity
-              style={[styles.reactionButton, reaction.disliked && { backgroundColor: colors.error + '22' }]}
-              onPress={() => toggleDislike(article)}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name={reaction.disliked ? 'thumb-down' : 'thumb-down-off-alt'} size={16} color={reaction.disliked ? colors.error : colors.textSecondary} />
-            </TouchableOpacity>
+            {/* Share Button */}
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: colors.primaryContainer }]}
               onPress={() => {/* share placeholder */}}

@@ -8,7 +8,6 @@ import { Colors } from '../constants/Colors';
 import { Typography } from '../constants/Typography';
 import { MaterialElevation } from './ui/MaterialComponents';
 import { ThemeToggle } from './ThemeToggle';
-import { getNetworkStatus, subscribeToNetworkStatus, NetworkStatus } from '../utils/networkTest';
 
 interface ProfessionalHeaderProps {
   title: string;
@@ -26,21 +25,6 @@ export function ProfessionalHeader({
   const insets = useSafeAreaInsets();
   const { resolvedTheme } = useTheme();
   const colors = Colors[resolvedTheme];
-  const [networkStatus, setNetworkStatus] = React.useState<NetworkStatus>({
-    isConnected: false,
-    connectionType: null,
-    isInternetReachable: false,
-  });
-
-  React.useEffect(() => {
-    // Get initial network status
-    getNetworkStatus().then(setNetworkStatus);
-    
-    // Subscribe to network changes
-    const unsubscribe = subscribeToNetworkStatus(setNetworkStatus);
-    
-    return unsubscribe;
-  }, []);
 
   const headerContent = (
     <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
@@ -58,16 +42,6 @@ export function ProfessionalHeader({
               <View style={styles.rightSection}>
                 <View style={styles.themeToggleContainer}>
                   <ThemeToggle size={20} />
-                </View>
-                <View style={styles.statusIndicator}>
-                  <Feather 
-                    name={networkStatus.isConnected ? "wifi" : "wifi-off"} 
-                    size={8} 
-                    color={colors.onPrimary} 
-                  />
-                  <Text style={[Typography.labelSmall, { color: colors.onPrimary, marginLeft: 4, fontSize: 10 }]}>
-                    {networkStatus.isConnected ? "LIVE" : "OFFLINE"}
-                  </Text>
                 </View>
               </View>
             </View>

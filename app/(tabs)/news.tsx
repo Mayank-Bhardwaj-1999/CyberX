@@ -13,6 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../store/ThemeContext';
+import { usePersonalFeed } from '../../store/PersonalFeedContext';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Layout } from '../../constants/Layout';
@@ -23,7 +24,6 @@ import { MaterialCard } from '../../components/ui/MaterialComponents';
 import { NewsCardSkeleton } from '../../components/ui/LoadingSkeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useNews } from '../../hooks/useNews';
-import { useNewsMonitor } from '../../services/newsMonitor';
 import { useThreatMonitoring } from '../../services/threatMonitoring';
 import { getThreatLevel } from '../../utils/threatAnalysis';
 import type { Article } from '../../types/news';
@@ -36,15 +36,15 @@ export default function NewsScreen() {
   const [viewMode, setViewMode] = useState<'default' | 'compact'>('default');
   const [refreshing, setRefreshing] = useState(false);
   // const router = useRouter(); // Router available if needed
-  const { checkForNewArticles } = useNewsMonitor();
 
   const { articles, isLoading, error, refetch, loadMore, loadingMore, hasMore } = useNews();
+  const { articles: feedArticles } = usePersonalFeed();
   const [visibleCount, setVisibleCount] = useState(20);
   const listRef = useState<FlatList | null>(null)[0];
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showFloatingLoadMore, setShowFloatingLoadMore] = useState(false);
   const insets = useSafeAreaInsets();
-  const { statistics, processArticles } = useThreatMonitoring();
+  const { processArticles } = useThreatMonitoring();
 
   // Categories with modern threat-focused design
   const categories = [
@@ -57,14 +57,9 @@ export default function NewsScreen() {
     { id: 'ransomware', name: 'Ransomware', icon: 'lock', color: colors.security },
   ];
 
-  // Monitor for new articles
-  useEffect(() => {
-    const interval = setInterval(() => {
-      checkForNewArticles();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [checkForNewArticles]);
-
+  // Removed aggressive auto-refresh to improve UX and prevent lag
+  // Users can manually refresh by pulling down
+  
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
@@ -173,27 +168,22 @@ export default function NewsScreen() {
         <EnhancedSearchBar placeholder="Search cybersecurity intelligence..." />
       </View>
 
-      {/* Stats Cards (interactive) */}
+      {/* Stats Cards (display-only for better performance) */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsContainer}>
-        {/* Total Alerts – navigate to Threat Alerts screen */}
-        <TouchableOpacity
-          onPress={() => router.push('/threat-alerts')}
-          activeOpacity={0.7}
-        >
-          <MaterialCard variant="elevated" style={[styles.statCard, { backgroundColor: colors.primaryContainer }]}>
-            <View style={styles.statContent}>
-              <Feather name="shield" size={24} color={colors.primary} />
-              <Text style={[Typography.headlineSmall, { color: colors.onPrimaryContainer }]}>
-                {statistics?.totalAlerts ?? 0}
-              </Text>
-              <Text style={[Typography.bodyMedium, { color: colors.onPrimaryContainer, opacity: 0.8 }]}>
-                Total Alerts
-              </Text>
-            </View>
-          </MaterialCard>
-        </TouchableOpacity>
+        {/* Total Alerts - shows total news count from API */}
+        <MaterialCard variant="elevated" style={[styles.statCard, { backgroundColor: colors.primaryContainer }]}>
+          <View style={styles.statContent}>
+            <Feather name="shield" size={24} color={colors.primary} />
+            <Text style={[Typography.headlineSmall, { color: colors.onPrimaryContainer }]}>
+              {articles?.length ?? 0}
+            </Text>
+            <Text style={[Typography.bodyMedium, { color: colors.onPrimaryContainer, opacity: 0.8 }]}>
+              Total News
+            </Text>
+          </View>
+        </MaterialCard>
 
-        {/* Critical Threats – filter list to critical severity */}
+        {/* Critical Threats - shows only critical threats count */}
         <TouchableOpacity
           onPress={() => setSelectedCategory('critical')}
           activeOpacity={0.7}
@@ -202,7 +192,7 @@ export default function NewsScreen() {
             <View style={styles.statContent}>
               <Feather name="alert-triangle" size={24} color={colors.error} />
               <Text style={[Typography.headlineSmall, { color: colors.onErrorContainer }]}>
-                {statistics?.criticalThreats ?? articles.filter(a => getThreatLevel(a) === 'critical').length}
+                {articles.filter(a => getThreatLevel(a) === 'critical').length}
               </Text>
               <Text style={[Typography.bodyMedium, { color: colors.onErrorContainer, opacity: 0.8 }]}>
                 Critical Threats
@@ -211,23 +201,18 @@ export default function NewsScreen() {
           </MaterialCard>
         </TouchableOpacity>
 
-        {/* New in last 24h – navigate to alerts */}
-        <TouchableOpacity
-          onPress={() => router.push('/threat-alerts')}
-          activeOpacity={0.7}
-        >
-          <MaterialCard variant="elevated" style={[styles.statCard, { backgroundColor: colors.secondaryContainer }]}>
-            <View style={styles.statContent}>
-              <Feather name="trending-up" size={24} color={colors.secondary} />
-              <Text style={[Typography.headlineSmall, { color: colors.onSecondaryContainer }]}>
-                {statistics?.newAlerts24h ?? 0}
-              </Text>
-              <Text style={[Typography.bodyMedium, { color: colors.onSecondaryContainer, opacity: 0.8 }]}>
-                Last 24h
-              </Text>
-            </View>
-          </MaterialCard>
-        </TouchableOpacity>
+        {/* Personal Feed - shows articles matching user's feed topics */}
+        <MaterialCard variant="elevated" style={[styles.statCard, { backgroundColor: colors.secondaryContainer }]}>
+          <View style={styles.statContent}>
+            <Feather name="rss" size={24} color={colors.secondary} />
+            <Text style={[Typography.headlineSmall, { color: colors.onSecondaryContainer }]}>
+              {feedArticles?.length ?? 0}
+            </Text>
+            <Text style={[Typography.bodyMedium, { color: colors.onSecondaryContainer, opacity: 0.8 }]}>
+              My Feed
+            </Text>
+          </View>
+        </MaterialCard>
       </ScrollView>
 
       {/* Category Filters */}
